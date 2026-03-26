@@ -1,6 +1,6 @@
-# CDC Dashboard — Postgres to Real-time
+# CDC Dashboard: Postgres to Real-time
 
-Turn any PostgreSQL database into a live dashboard. No event streams, no message queues, no custom ingestion code — wavelet watches your source database directly via Change Data Capture (CDC).
+Turn any PostgreSQL database into a live dashboard. No event streams, no message queues, no custom ingestion code. Wavelet watches your source database directly via Change Data Capture (CDC).
 
 When a row changes in Postgres, the dashboard updates instantly.
 
@@ -11,7 +11,7 @@ When a row changes in Postgres, the dashboard updates instantly.
 - Revenue by category (doughnut chart)
 - Recent orders table with live updates
 
-All data comes from a standard PostgreSQL database. Any tool that writes to that database — a Rails app, Django, raw SQL, a cron job — automatically updates the dashboard.
+All data comes from a standard PostgreSQL database. Any tool that writes to that database (a Rails app, Django, raw SQL, a cron job) automatically updates the dashboard.
 
 ## Prerequisites
 
@@ -41,9 +41,6 @@ psql -d shop -f setup.sql
 ### 2. Install and start wavelet
 
 ```bash
-curl -L https://risingwave.com/sh | sh   # install RisingWave (if not already)
-npm install @risingwave/wavelet
-
 # Point wavelet at your source Postgres
 export SOURCE_DATABASE_URL='postgres://postgres:postgres@localhost:5432/shop'
 npx wavelet dev --config wavelet.config.ts
@@ -80,7 +77,7 @@ sources: {
 }
 
 queries: {
-  revenue_by_product:  SUM(quantity * unit_price) GROUP BY product — joins orders + products
+  revenue_by_product:  SUM(quantity * unit_price) GROUP BY product (joins orders + products)
   revenue_by_category: SUM(quantity * unit_price) GROUP BY category
   order_stats:         COUNT(*), SUM, AVG across all orders
   recent_orders:       last 20 orders with product info
@@ -90,17 +87,17 @@ queries: {
 ## What to try
 
 1. Open the dashboard and watch numbers tick as `simulate.js` runs
-2. Stop `simulate.js` — updates stop (no new rows in Postgres)
-3. Insert an order manually via `psql` — it shows up immediately:
+2. Stop `simulate.js` and updates stop (no new rows in Postgres)
+3. Insert an order manually via `psql` and it shows up immediately:
    ```sql
    INSERT INTO orders (product_id, quantity, unit_price, customer_email)
    VALUES (3, 2, 149.99, 'manual@test.com');
    ```
-4. Update a product name — the dashboard reflects the change across all views:
+4. Update a product name and the dashboard reflects the change across all queries:
    ```sql
    UPDATE products SET name = 'Pro Keyboard' WHERE id = 3;
    ```
-5. Any application that writes to the `shop` database will update the dashboard — no code changes needed
+5. Any application that writes to the `shop` database will update the dashboard with no code changes needed
 
 ## How CDC works
 

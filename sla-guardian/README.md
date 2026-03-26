@@ -14,14 +14,13 @@ Real-time SLA monitoring agent that watches API metrics and fires webhook alerts
 ## Run
 
 ```bash
-npm install @risingwave/wavelet
 npx wavelet dev --config wavelet.config.ts &
 node agent.js &
 node seed.js &
 open index.html
 ```
 
-The seed script starts with healthy traffic for the first 10 seconds, then begins injecting latency spikes and 500 errors — watch the dashboard go from green to red.
+The seed script starts with healthy traffic for the first 10 seconds, then begins injecting latency spikes and 500 errors. Watch the dashboard go from green to red.
 
 ## How the webhook works
 

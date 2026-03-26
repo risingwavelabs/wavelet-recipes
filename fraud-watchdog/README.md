@@ -14,8 +14,6 @@ The seed script generates normal user transactions for 8 seconds, then injects f
 ## Run
 
 ```bash
-curl -L https://risingwave.com/sh | sh   # install RisingWave (if not already)
-npm install @risingwave/wavelet
 npx wavelet dev --config wavelet.config.ts &
 node agent.js &
 node seed.js &
@@ -38,7 +36,7 @@ queries: {
 ## What to try
 
 1. Open the dashboard and watch normal transactions flow
-2. After ~8 seconds, fraud users appear — watch the flagged card light up
+2. After ~8 seconds, fraud users appear and the flagged card lights up
 3. Check the agent console for detailed webhook alerts with severity classification
-4. Stop `seed.js` — updates stop immediately
-5. Restart `seed.js` — fraud detection resumes
+4. Stop `seed.js` and updates stop immediately
+5. Restart `seed.js` and fraud detection resumes
