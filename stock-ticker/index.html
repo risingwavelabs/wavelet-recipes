@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market — Wavelet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --border: #1f3460;
+      --border-light: #1a2d52;
+      --text: #e0e0e0;
+      --text-2: #8892a8;
+      --text-3: #5c6880;
+      --ink: #f0f0f0;
+      --accent: #4a9eff;
+      --positive: #00ff88;
+      --negative: #ff4444;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+      --shadow-md:
+        0 1px 3px rgba(0,0,0,0.3),
+        0 4px 12px rgba(0,0,0,0.15);
+      --sans: "Instrument Sans", -apple-system, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      height: 52px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-title span {
+      color: var(--text-3);
+      font-weight: 400;
+      margin: 0 6px;
+    }
+
+    .nav-page { font-weight: 500; color: var(--text-2); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 9px;
+      background: var(--bg);
+    }
+
+    .pill-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-3);
+      transition: background 0.4s;
+    }
+
+    .pill.on .pill-dot { background: var(--positive); }
+    .pill.on { color: var(--text-2); }
+
+    /* ---- Layout ---- */
+    .page {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+      display: grid;
+      gap: 14px;
+    }
+
+    /* ---- Metric strip ---- */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .metric {
+      padding: 20px 22px;
+      border-right: 1px solid var(--border-light);
+    }
+
+    .metric:last-child { border-right: none; }
+
+    .metric-label {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+
+    .metric-num {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      transition: color 0.5s ease;
+    }
+
+    .metric-num.flash { color: var(--positive); }
+
+    /* ---- Cards ---- */
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 13px 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .card-body { padding: 18px 20px; }
+
+    .chart-box { position: relative; height: 200px; }
+
+    /* ---- Ticker Board ---- */
+    .ticker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      padding: 16px 20px;
+    }
+
+    .ticker-cell {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      transition: border-color 0.3s;
+    }
+
+    .ticker-cell.flash-up { border-color: var(--positive); }
+    .ticker-cell.flash-down { border-color: var(--negative); }
+
+    .ticker-symbol {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .ticker-price {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.03em;
+      transition: color 0.4s;
+    }
+
+    .ticker-price.up { color: var(--positive); }
+    .ticker-price.down { color: var(--negative); }
+
+    .ticker-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-3);
+    }
+
+    .ticker-meta .label { color: var(--text-3); margin-right: 3px; }
+    .ticker-range { color: var(--text-2); }
+
+    /* ---- Table ---- */
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 9px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    td {
+      padding: 8px 20px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .new-row { animation: highlight 0.7s ease-out; }
+    @keyframes highlight {
+      from { background: rgba(0,255,136,0.06); }
+      to { background: transparent; }
+    }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      background: rgba(74,158,255,0.1);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .buy { color: var(--positive); }
+    .sell { color: var(--negative); }
+
+    .mono {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .secondary { color: var(--text-2); }
+
+    .timestamp {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .foot {
+      text-align: center;
+      padding: 16px 0;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .foot a {
+      color: var(--text-2);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .foot a:hover { color: var(--ink); }
+
+    /* ---- Entrance ---- */
+    .metric, .card {
+      animation: enter 0.45s ease-out both;
+    }
+
+    .metrics .metric:nth-child(1) { animation-delay: 0s; }
+    .metrics .metric:nth-child(2) { animation-delay: 0.03s; }
+    .metrics .metric:nth-child(3) { animation-delay: 0.06s; }
+    .metrics .metric:nth-child(4) { animation-delay: 0.09s; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: none; }
+      .metric:nth-child(3), .metric:nth-child(4) { border-top: 1px solid var(--border-light); }
+      .row { grid-template-columns: 1fr; }
+      .page { padding: 16px 12px 40px; }
+      .ticker-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-title">Wavelet<span>/</span><span class="nav-page">Market</span></div>
+    <div class="pill" id="pill">
+      <span class="pill-dot"></span>
+      <span id="statusText">connecting</span>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Total Volume</div>
+        <div class="metric-num" id="totalVolume">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Trade Count</div>
+        <div class="metric-num" id="tradeCount">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Active Symbols</div>
+        <div class="metric-num" id="activeSymbols">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Buy/Sell Ratio</div>
+        <div class="metric-num" id="buySellRatio">--</div>
+      </div>
+    </div>
+
+    <div class="card" style="animation-delay:0.12s">
+      <div class="card-head">Ticker Board</div>
+      <div class="ticker-grid" id="tickerGrid"></div>
+    </div>
+
+    <div class="row">
+      <div class="card" style="animation-delay:0.15s">
+        <div class="card-head">Volume by Symbol</div>
+        <div class="card-body"><div class="chart-box"><canvas id="volumeChart"></canvas></div></div>
+      </div>
+      <div class="card" style="animation-delay:0.18s">
+        <div class="card-head">Buy vs Sell Pressure</div>
+        <div class="card-body"><div class="chart-box"><canvas id="pressureChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="card" style="animation-delay:0.21s">
+      <div class="card-head">Trade Tape</div>
+      <div>
+        <table>
+          <thead><tr>
+            <th>Symbol</th><th>Side</th><th>Price</th><th>Volume</th><th>Time</th>
+          </tr></thead>
+          <tbody id="tapeBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <a href="https://github.com/risingwavelabs/wavelet">Wavelet</a> + <a href="https://github.com/risingwavelabs/risingwave">RisingWave</a>
+  </div>
+
+  <script>
+    const BASE = window.location.hostname === 'localhost'
+      ? 'http://localhost:8080'
+      : `http://${window.location.hostname}:8080`
+    const WS = BASE.replace('http', 'ws')
+
+    // ---- Animated numbers ----
+    const st = {}
+    function tick(el, target, fmt) {
+      const id = el.id
+      if (!st[id]) st[id] = { v: 0, raf: null }
+      const s = st[id]; s.target = target
+      if (s.raf) return
+      const from = s.v, t0 = performance.now()
+      ;(function run(now) {
+        const p = Math.min((now - t0) / 400, 1)
+        s.v = from + (s.target - from) * (1 - Math.pow(1 - p, 3))
+        el.textContent = fmt ? fmt(s.v) : Math.round(s.v).toLocaleString()
+        if (p < 1) s.raf = requestAnimationFrame(run)
+        else { s.raf = null; s.v = s.target }
+      })(t0)
+      el.classList.add('flash')
+      setTimeout(() => el.classList.remove('flash'), 600)
+    }
+
+    // ---- Charts ----
+    Chart.defaults.color = '#5c6880'
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.05)'
+    Chart.defaults.font.family = '"Instrument Sans", sans-serif'
+    Chart.defaults.font.size = 11
+
+    const pal = ['#4a9eff', '#00ff88', '#ff4444', '#ffaa00', '#aa66ff', '#ff66aa', '#00ddcc']
+
+    const volumeChart = new Chart(document.getElementById('volumeChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: pal, borderRadius: 3, borderSkipped: false, maxBarThickness: 40 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#8892a8', font: { family: '"IBM Plex Mono"', size: 10.5 } } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => (v/1000).toFixed(0) + 'k', color: '#5c6880', font: { family: '"IBM Plex Mono"', size: 10 } } },
+        },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    const pressureChart = new Chart(document.getElementById('pressureChart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Buy', data: [], backgroundColor: '#00ff8844', borderColor: '#00ff88', borderWidth: 1, borderRadius: 3, borderSkipped: false },
+          { label: 'Sell', data: [], backgroundColor: '#ff444444', borderColor: '#ff4444', borderWidth: 1, borderRadius: 3, borderSkipped: false },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: { color: '#8892a8', font: { size: 10.5 }, usePointStyle: true, pointStyleWidth: 8, padding: 12 }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#8892a8', font: { family: '"IBM Plex Mono"', size: 10.5 } } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => (v/1000).toFixed(0) + 'k', color: '#5c6880', font: { family: '"IBM Plex Mono"', size: 10 } } },
+        },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    // ---- Ticker Board ----
+    const prevVwap = {}
+
+    function renderTicker(rows) {
+      const grid = document.getElementById('tickerGrid')
+      grid.innerHTML = rows.map(r => {
+        const vwap = Number(r.vwap)
+        const prev = prevVwap[r.symbol]
+        const dir = prev == null ? '' : vwap > prev ? 'up' : vwap < prev ? 'down' : ''
+        const flashClass = dir === 'up' ? 'flash-up' : dir === 'down' ? 'flash-down' : ''
+        prevVwap[r.symbol] = vwap
+        return `
+          <div class="ticker-cell ${flashClass}">
+            <div class="ticker-symbol">${r.symbol}</div>
+            <div class="ticker-price ${dir}">${vwap.toFixed(2)}</div>
+            <div class="ticker-meta">
+              <span><span class="label">H</span><span class="ticker-range">${Number(r.high).toFixed(2)}</span></span>
+              <span><span class="label">L</span><span class="ticker-range">${Number(r.low).toFixed(2)}</span></span>
+              <span><span class="label">Vol</span>${Number(r.total_volume).toLocaleString()}</span>
+            </div>
+          </div>
+        `
+      }).join('')
+
+      // Remove flash after animation
+      setTimeout(() => {
+        grid.querySelectorAll('.flash-up, .flash-down').forEach(el => {
+          el.classList.remove('flash-up', 'flash-down')
+        })
+      }, 600)
+    }
+
+    // ---- Subscribe ----
+    function sub(view, fn) {
+      const poll = () => fetch(`${BASE}/v1/queries/${view}`).then(r => r.json()).then(d => fn(d.rows)).catch(() => {})
+      poll(); setInterval(poll, 1000)
+      ;(function ws() {
+        const c = new WebSocket(`${WS}/subscribe/${view}`)
+        c.onopen = () => {
+          document.getElementById('pill').classList.add('on')
+          document.getElementById('statusText').textContent = 'live'
+        }
+        c.onmessage = e => { if (JSON.parse(e.data).type === 'diff') poll() }
+        c.onclose = () => setTimeout(ws, 2000)
+        c.onerror = () => c.close()
+      })()
+    }
+
+    sub('ticker', rows => {
+      renderTicker(rows)
+      const vol = rows.reduce((s, r) => s + Number(r.total_volume), 0)
+      const trades = rows.reduce((s, r) => s + Number(r.trade_count), 0)
+      tick(document.getElementById('totalVolume'), vol)
+      tick(document.getElementById('tradeCount'), trades)
+      tick(document.getElementById('activeSymbols'), rows.length)
+    })
+
+    sub('volume_chart', rows => {
+      volumeChart.data.labels = rows.map(r => r.symbol)
+      volumeChart.data.datasets[0].data = rows.map(r => Number(r.total_volume))
+      volumeChart.update()
+    })
+
+    sub('market_pressure', rows => {
+      // Sort by total volume descending for consistent display
+      const sorted = [...rows].sort((a, b) =>
+        (Number(b.buy_volume) + Number(b.sell_volume)) - (Number(a.buy_volume) + Number(a.sell_volume))
+      )
+      pressureChart.data.labels = sorted.map(r => r.symbol)
+      pressureChart.data.datasets[0].data = sorted.map(r => Number(r.buy_volume))
+      pressureChart.data.datasets[1].data = sorted.map(r => Number(r.sell_volume))
+      pressureChart.update()
+
+      const totalBuy = sorted.reduce((s, r) => s + Number(r.buy_volume), 0)
+      const totalSell = sorted.reduce((s, r) => s + Number(r.sell_volume), 0)
+      const ratio = totalSell > 0 ? totalBuy / totalSell : 0
+      tick(document.getElementById('buySellRatio'), ratio, v => v.toFixed(2))
+    })
+
+    sub('trade_tape', rows => {
+      document.getElementById('tapeBody').innerHTML = rows.slice(0, 20).map((r, i) => `
+        <tr class="${i < 3 ? 'new-row' : ''}">
+          <td><span class="tag">${r.symbol}</span></td>
+          <td class="${r.side === 'buy' ? 'buy' : 'sell'} mono" style="font-weight:600; text-transform:uppercase">${r.side}</td>
+          <td class="mono secondary">${Number(r.price).toFixed(2)}</td>
+          <td class="mono secondary">${Number(r.volume).toLocaleString()}</td>
+          <td class="timestamp">${new Date(r.ts).toLocaleTimeString()}</td>
+        </tr>
+      `).join('')
+    })
+  </script>
+</body>
+</html>

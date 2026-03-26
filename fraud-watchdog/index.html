@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fraud Watchdog — Wavelet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --surface: #ffffff;
+      --border: #e3e0db;
+      --border-light: #eceae5;
+      --text: #1c1b19;
+      --text-2: #5c5a56;
+      --text-3: #9b9892;
+      --ink: #2c2b28;
+      --accent: #1a56db;
+      --positive: #1a7a42;
+      --negative: #c93b3b;
+      --warning: #b45d1e;
+      --shadow-sm: 0 1px 2px rgba(28,27,25,0.04);
+      --shadow-md:
+        0 1px 3px rgba(28,27,25,0.04),
+        0 4px 12px rgba(28,27,25,0.03);
+      --sans: "Instrument Sans", -apple-system, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      height: 52px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-title span {
+      color: var(--text-3);
+      font-weight: 400;
+      margin: 0 6px;
+    }
+
+    .nav-page { font-weight: 500; color: var(--text-2); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 9px;
+      background: var(--bg);
+    }
+
+    .pill-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-3);
+      transition: background 0.4s;
+    }
+
+    .pill.on .pill-dot { background: var(--positive); }
+    .pill.on { color: var(--text-2); }
+
+    /* ---- Layout ---- */
+    .page {
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+      display: grid;
+      gap: 14px;
+    }
+
+    /* ---- Metric strip ---- */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .metric {
+      padding: 20px 22px;
+      border-right: 1px solid var(--border-light);
+    }
+
+    .metric:last-child { border-right: none; }
+
+    .metric-label {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+
+    .metric-num {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      transition: color 0.5s ease;
+    }
+
+    .metric-num.flash { color: var(--positive); }
+    .metric-num.flash-red { color: var(--negative); }
+
+    /* ---- Cards ---- */
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 13px 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      border-bottom: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-head .badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: white;
+      background: var(--negative);
+      padding: 2px 7px;
+      border-radius: 4px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .card-head .badge.zero {
+      background: var(--text-3);
+    }
+
+    .card-body { padding: 18px 20px; }
+
+    .chart-box { position: relative; height: 200px; }
+
+    /* ---- Table ---- */
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 9px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    td {
+      padding: 10px 20px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(0,0,0,0.03);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .new-row { animation: highlight 0.7s ease-out; }
+    @keyframes highlight {
+      from { background: rgba(26,122,66,0.05); }
+      to { background: transparent; }
+    }
+
+    .fraud-row { animation: highlight-red 1s ease-out; }
+    @keyframes highlight-red {
+      from { background: rgba(201,59,59,0.08); }
+      to { background: rgba(201,59,59,0.02); }
+    }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      background: rgba(26,86,219,0.06);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .tag-fraud {
+      color: var(--negative);
+      background: rgba(201,59,59,0.08);
+      font-weight: 600;
+    }
+
+    .money {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--positive);
+    }
+
+    .money-high {
+      color: var(--negative);
+    }
+
+    .secondary { color: var(--text-2); }
+
+    .timestamp {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    /* ---- Flagged users card ---- */
+    .flagged-card {
+      border: 1px solid var(--negative);
+      box-shadow: var(--shadow-md), 0 0 0 1px rgba(201,59,59,0.08);
+    }
+
+    .flagged-card .card-head {
+      background: rgba(201,59,59,0.03);
+      color: var(--negative);
+      font-weight: 700;
+    }
+
+    .flagged-user {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border-light);
+      animation: flag-enter 0.5s ease-out;
+    }
+
+    .flagged-user:last-child { border-bottom: none; }
+
+    @keyframes flag-enter {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .flagged-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .flagged-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .severity-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .severity-critical {
+      background: rgba(201,59,59,0.12);
+      color: var(--negative);
+    }
+
+    .severity-warning {
+      background: rgba(180,93,30,0.12);
+      color: var(--warning);
+    }
+
+    .flagged-stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 6px;
+    }
+
+    .flagged-stat {
+      font-size: 11.5px;
+      color: var(--text-2);
+    }
+
+    .flagged-stat strong {
+      font-family: var(--mono);
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .flagged-reasons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 6px;
+    }
+
+    .reason-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 3px;
+    }
+
+    .reason-freq {
+      background: rgba(201,59,59,0.08);
+      color: var(--negative);
+    }
+
+    .reason-geo {
+      background: rgba(26,86,219,0.08);
+      color: var(--accent);
+    }
+
+    .reason-amount {
+      background: rgba(180,93,30,0.1);
+      color: var(--warning);
+    }
+
+    .empty-state {
+      padding: 30px 20px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+    }
+
+    .foot {
+      text-align: center;
+      padding: 16px 0;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .foot a {
+      color: var(--text-2);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .foot a:hover { color: var(--ink); }
+
+    /* ---- Entrance ---- */
+    .metric, .card {
+      animation: enter 0.45s ease-out both;
+    }
+
+    .metrics .metric:nth-child(1) { animation-delay: 0s; }
+    .metrics .metric:nth-child(2) { animation-delay: 0.03s; }
+    .metrics .metric:nth-child(3) { animation-delay: 0.06s; }
+    .metrics .metric:nth-child(4) { animation-delay: 0.09s; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: none; }
+      .metric:nth-child(3), .metric:nth-child(4) { border-top: 1px solid var(--border-light); }
+      .row { grid-template-columns: 1fr; }
+      .page { padding: 16px 12px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-title">Wavelet<span>/</span><span class="nav-page">Fraud Watchdog</span></div>
+    <div class="pill" id="pill">
+      <span class="pill-dot"></span>
+      <span id="statusText">connecting</span>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Total Transactions</div>
+        <div class="metric-num" id="totalTx">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Total Volume</div>
+        <div class="metric-num" id="totalVolume">$0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Flagged Users</div>
+        <div class="metric-num" id="flaggedCount">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Countries</div>
+        <div class="metric-num" id="countryCount">0</div>
+      </div>
+    </div>
+
+    <div class="row" style="animation-delay:0.12s">
+      <div class="card" style="animation-delay:0.12s">
+        <div class="card-head">Volume by Country</div>
+        <div class="card-body"><div class="chart-box"><canvas id="geoChart"></canvas></div></div>
+      </div>
+      <div class="card flagged-card" id="flaggedCard" style="animation-delay:0.15s">
+        <div class="card-head">
+          Flagged Users
+          <span class="badge zero" id="flaggedBadge">0</span>
+        </div>
+        <div id="flaggedBody">
+          <div class="empty-state">No suspicious activity detected yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="animation-delay:0.18s">
+      <div class="card-head">Live Transaction Feed</div>
+      <div>
+        <table>
+          <thead><tr>
+            <th>User</th><th>Amount</th><th>Merchant</th><th>Country</th><th>Card</th><th>Time</th>
+          </tr></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <a href="https://github.com/risingwavelabs/wavelet">Wavelet</a> + <a href="https://github.com/risingwavelabs/risingwave">RisingWave</a>
+  </div>
+
+  <script>
+    const BASE = window.location.hostname === 'localhost'
+      ? 'http://localhost:8080'
+      : `http://${window.location.hostname}:8080`
+    const WS = BASE.replace('http', 'ws')
+
+    // Track flagged user IDs for highlighting in the feed
+    let flaggedUserIds = new Set()
+
+    // ---- Animated numbers ----
+    const st = {}
+    function tick(el, target, isRed) {
+      const id = el.id
+      if (!st[id]) st[id] = { v: 0, raf: null }
+      const s = st[id]; s.target = target
+      if (s.raf) return
+      const from = s.v, t0 = performance.now()
+      const isMoney = id === 'totalVolume'
+      const isPlain = id === 'totalTx' || id === 'countryCount' || id === 'flaggedCount'
+      ;(function run(now) {
+        const p = Math.min((now - t0) / 400, 1)
+        s.v = from + (s.target - from) * (1 - Math.pow(1 - p, 3))
+        if (isMoney) {
+          el.textContent = '$' + Math.round(s.v).toLocaleString()
+        } else {
+          el.textContent = Math.round(s.v).toLocaleString()
+        }
+        if (p < 1) s.raf = requestAnimationFrame(run)
+        else { s.raf = null; s.v = s.target }
+      })(t0)
+      const cls = isRed ? 'flash-red' : 'flash'
+      el.classList.add(cls)
+      setTimeout(() => el.classList.remove(cls), 600)
+    }
+
+    // ---- Chart ----
+    Chart.defaults.color = '#9b9892'
+    Chart.defaults.borderColor = 'rgba(0,0,0,0.04)'
+    Chart.defaults.font.family = '"Instrument Sans", sans-serif'
+    Chart.defaults.font.size = 11
+
+    const pal = ['#1a56db','#2d7a4f','#b45d1e','#8b3db6','#c93b3b','#1a7a42','#6b5b95']
+
+    const geoChart = new Chart(document.getElementById('geoChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: pal, borderRadius: 3, borderSkipped: false, maxBarThickness: 40 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v), font: { family: '"IBM Plex Mono"', size: 10 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 11, weight: 600 } } },
+        },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    // ---- Flagged users rendering ----
+    function classifyUser(user) {
+      const reasons = []
+      const txCount = Number(user.tx_count)
+      const maxAmount = Number(user.max_amount)
+      const countryCount = Number(user.country_count)
+
+      if (txCount > 20) reasons.push({ label: `${txCount} transactions`, type: 'freq' })
+      if (countryCount > 3) reasons.push({ label: `${countryCount} countries`, type: 'geo' })
+      if (maxAmount > 5000) reasons.push({ label: `max $${maxAmount.toLocaleString()}`, type: 'amount' })
+
+      const severity = reasons.length >= 2 || maxAmount > 7000 || txCount > 50 ? 'critical' : 'warning'
+      return { reasons, severity }
+    }
+
+    function renderFlagged(users) {
+      const badge = document.getElementById('flaggedBadge')
+      badge.textContent = users.length
+      badge.className = users.length > 0 ? 'badge' : 'badge zero'
+
+      const body = document.getElementById('flaggedBody')
+      if (users.length === 0) {
+        body.innerHTML = '<div class="empty-state">No suspicious activity detected yet</div>'
+        return
+      }
+
+      body.innerHTML = users.map(user => {
+        const { reasons, severity } = classifyUser(user)
+        return `
+          <div class="flagged-user">
+            <div class="flagged-header">
+              <span class="flagged-name">${user.user_id}</span>
+              <span class="severity-badge severity-${severity}">${severity}</span>
+            </div>
+            <div class="flagged-stats">
+              <span class="flagged-stat"><strong>${Number(user.tx_count)}</strong> txns</span>
+              <span class="flagged-stat"><strong>$${Number(user.total_amount).toLocaleString()}</strong> volume</span>
+              <span class="flagged-stat"><strong>$${Number(user.max_amount).toLocaleString()}</strong> max</span>
+              <span class="flagged-stat"><strong>${user.country_count}</strong> countries</span>
+            </div>
+            <div class="flagged-reasons">
+              ${reasons.map(r => `<span class="reason-tag reason-${r.type}">${r.label}</span>`).join('')}
+            </div>
+          </div>
+        `
+      }).join('')
+    }
+
+    // ---- Subscribe ----
+    function sub(view, fn) {
+      const poll = () => fetch(`${BASE}/v1/queries/${view}`).then(r => r.json()).then(d => fn(d.rows)).catch(() => {})
+      poll(); setInterval(poll, 1000)
+      ;(function ws() {
+        const c = new WebSocket(`${WS}/subscribe/${view}`)
+        c.onopen = () => {
+          document.getElementById('pill').classList.add('on')
+          document.getElementById('statusText').textContent = 'live'
+        }
+        c.onmessage = e => { if (JSON.parse(e.data).type === 'diff') poll() }
+        c.onclose = () => setTimeout(ws, 2000)
+        c.onerror = () => c.close()
+      })()
+    }
+
+    sub('user_activity', rows => {
+      const totalTx = rows.reduce((s, r) => s + Number(r.tx_count), 0)
+      const totalVol = rows.reduce((s, r) => s + Number(r.total_amount), 0)
+      tick(document.getElementById('totalTx'), totalTx)
+      tick(document.getElementById('totalVolume'), totalVol)
+    })
+
+    sub('geo_distribution', rows => {
+      geoChart.data.labels = rows.map(r => r.country)
+      geoChart.data.datasets[0].data = rows.map(r => Number(r.total_amount))
+      geoChart.update()
+      tick(document.getElementById('countryCount'), rows.length)
+    })
+
+    sub('suspicious_users', rows => {
+      flaggedUserIds = new Set(rows.map(r => r.user_id))
+      renderFlagged(rows)
+      tick(document.getElementById('flaggedCount'), rows.length, rows.length > 0)
+    })
+
+    sub('recent_transactions', rows => {
+      document.getElementById('txBody').innerHTML = rows.slice(0, 15).map((r, i) => {
+        const isFlagged = flaggedUserIds.has(r.user_id)
+        const rowClass = isFlagged ? 'fraud-row' : (i < 2 ? 'new-row' : '')
+        const tagClass = isFlagged ? 'tag tag-fraud' : 'tag'
+        const amount = Number(r.amount)
+        const moneyClass = amount > 3000 ? 'money money-high' : 'money'
+        return `
+          <tr class="${rowClass}">
+            <td><span class="${tagClass}">${r.user_id}</span></td>
+            <td class="${moneyClass}">$${amount.toFixed(2)}</td>
+            <td class="secondary">${r.merchant}</td>
+            <td class="secondary">${r.country}</td>
+            <td class="secondary">${r.card_type}</td>
+            <td class="timestamp">${new Date(r.ts).toLocaleTimeString()}</td>
+          </tr>
+        `
+      }).join('')
+    })
+  </script>
+</body>
+</html>

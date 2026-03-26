@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenant Metrics — Wavelet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --surface: #ffffff;
+      --border: #e3e0db;
+      --border-light: #eceae5;
+      --text: #1c1b19;
+      --text-2: #5c5a56;
+      --text-3: #9b9892;
+      --ink: #2c2b28;
+      --accent: #1a56db;
+      --positive: #1a7a42;
+      --negative: #c93b3b;
+      --shadow-sm: 0 1px 2px rgba(28,27,25,0.04);
+      --shadow-md:
+        0 1px 3px rgba(28,27,25,0.04),
+        0 4px 12px rgba(28,27,25,0.03);
+      --sans: "Instrument Sans", -apple-system, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      height: 52px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-title span {
+      color: var(--text-3);
+      font-weight: 400;
+      margin: 0 6px;
+    }
+
+    .nav-page { font-weight: 500; color: var(--text-2); }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ---- Tenant selector ---- */
+    .tenant-select {
+      appearance: none;
+      -webkit-appearance: none;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--ink);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 28px 5px 10px;
+      cursor: pointer;
+      outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%239b9892' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: border-color 0.15s;
+    }
+
+    .tenant-select:hover { border-color: var(--text-3); }
+    .tenant-select:focus { border-color: var(--accent); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 9px;
+      background: var(--bg);
+    }
+
+    .pill-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-3);
+      transition: background 0.4s;
+    }
+
+    .pill.on .pill-dot { background: var(--positive); }
+    .pill.on { color: var(--text-2); }
+
+    /* ---- Layout ---- */
+    .page {
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .tenant-badge {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent);
+      background: rgba(26,86,219,0.06);
+      padding: 4px 10px;
+      border-radius: 5px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    /* ---- Metric strip ---- */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .metric {
+      padding: 20px 22px;
+      border-right: 1px solid var(--border-light);
+    }
+
+    .metric:last-child { border-right: none; }
+
+    .metric-label {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+
+    .metric-num {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      transition: color 0.5s ease;
+    }
+
+    .metric-num.flash { color: var(--positive); }
+
+    /* ---- Cards ---- */
+    .row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.6fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 13px 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .card-body { padding: 18px 20px; }
+
+    .chart-box { position: relative; height: 180px; }
+
+    /* ---- Table ---- */
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 9px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    td {
+      padding: 10px 20px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(0,0,0,0.03);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      background: rgba(26,86,219,0.06);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .num {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .secondary { color: var(--text-2); }
+
+    .admin-only { display: none; }
+    .admin-only.visible { display: block; }
+
+    .foot {
+      text-align: center;
+      padding: 16px 0;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .foot a {
+      color: var(--text-2);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .foot a:hover { color: var(--ink); }
+
+    /* ---- Entrance ---- */
+    .metric, .card {
+      animation: enter 0.45s ease-out both;
+    }
+
+    .metrics .metric:nth-child(1) { animation-delay: 0s; }
+    .metrics .metric:nth-child(2) { animation-delay: 0.03s; }
+    .metrics .metric:nth-child(3) { animation-delay: 0.06s; }
+    .metrics .metric:nth-child(4) { animation-delay: 0.09s; }
+    .row .card:nth-child(1) { animation-delay: 0.12s; }
+    .row .card:nth-child(2) { animation-delay: 0.15s; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: none; }
+      .metric:nth-child(3), .metric:nth-child(4) { border-top: 1px solid var(--border-light); }
+      .row { grid-template-columns: 1fr; }
+      .page { padding: 16px 12px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-left">
+      <div class="nav-title">Wavelet<span>/</span><span class="nav-page">Analytics</span></div>
+      <select class="tenant-select" id="tenantSelect">
+        <option value="acme">Acme</option>
+        <option value="globex">Globex</option>
+        <option value="initech">Initech</option>
+        <option value="hooli">Hooli</option>
+        <option value="admin">Admin / All</option>
+      </select>
+    </div>
+    <div class="nav-right">
+      <div class="pill" id="pill">
+        <span class="pill-dot"></span>
+        <span id="statusText">connecting</span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Total Events</div>
+        <div class="metric-num" id="totalEvents">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Active Users</div>
+        <div class="metric-num" id="activeUsers">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Page Views</div>
+        <div class="metric-num" id="pageViews">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Avg Duration</div>
+        <div class="metric-num" id="avgDuration">0 ms</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <div class="card-head">Events by Page</div>
+        <div class="card-body"><div class="chart-box"><canvas id="pageChart"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Event Type Breakdown</div>
+        <div class="card-body"><div class="chart-box"><canvas id="eventChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="card admin-only" id="globalCard" style="animation-delay:0.18s">
+      <div class="card-head">Global Tenant Comparison</div>
+      <div>
+        <table>
+          <thead><tr>
+            <th>Tenant</th><th>Total Events</th><th>Active Users</th>
+          </tr></thead>
+          <tbody id="globalBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <a href="https://github.com/risingwavelabs/wavelet">Wavelet</a> + <a href="https://github.com/risingwavelabs/risingwave">RisingWave</a>
+  </div>
+
+  <script>
+    const BASE = window.location.hostname === 'localhost'
+      ? 'http://localhost:8080'
+      : `http://${window.location.hostname}:8080`
+    const WS = BASE.replace('http', 'ws')
+
+    // ---- Minimal JWT signing (HS256) ----
+    // In production, get tokens from your auth service.
+    // This inline implementation is for demo convenience only.
+
+    const JWT_SECRET = 'wavelet-demo-secret-key-change-in-production'
+
+    function base64url(str) {
+      return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    }
+
+    function base64urlBytes(buf) {
+      const bytes = new Uint8Array(buf)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      return base64url(binary)
+    }
+
+    async function signJwt(payload) {
+      const header = { alg: 'HS256', typ: 'JWT' }
+      const now = Math.floor(Date.now() / 1000)
+      const fullPayload = { ...payload, iat: now, exp: now + 3600 }
+
+      const headerB64 = base64url(JSON.stringify(header))
+      const payloadB64 = base64url(JSON.stringify(fullPayload))
+      const signingInput = `${headerB64}.${payloadB64}`
+
+      const enc = new TextEncoder()
+      const key = await crypto.subtle.importKey(
+        'raw', enc.encode(JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+      )
+      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(signingInput))
+      return `${signingInput}.${base64urlBytes(sig)}`
+    }
+
+    // Pre-generate tokens for all tenants
+    const tokenCache = {}
+
+    async function getToken(tenantId) {
+      if (tokenCache[tenantId]) return tokenCache[tenantId]
+      let token
+      if (tenantId === 'admin') {
+        token = await signJwt({ role: 'admin' })
+      } else {
+        token = await signJwt({ tenant_id: tenantId })
+      }
+      tokenCache[tenantId] = token
+      return token
+    }
+
+    // ---- Animated numbers ----
+    const st = {}
+    function tick(el, target, suffix) {
+      const id = el.id
+      if (!st[id]) st[id] = { v: 0, raf: null }
+      const s = st[id]; s.target = target
+      if (s.raf) return
+      const from = s.v, t0 = performance.now()
+      ;(function run(now) {
+        const p = Math.min((now - t0) / 400, 1)
+        s.v = from + (s.target - from) * (1 - Math.pow(1 - p, 3))
+        el.textContent = Math.round(s.v).toLocaleString() + (suffix || '')
+        if (p < 1) s.raf = requestAnimationFrame(run)
+        else { s.raf = null; s.v = s.target }
+      })(t0)
+      el.classList.add('flash')
+      setTimeout(() => el.classList.remove('flash'), 600)
+    }
+
+    // ---- Charts ----
+    Chart.defaults.color = '#9b9892'
+    Chart.defaults.borderColor = 'rgba(0,0,0,0.04)'
+    Chart.defaults.font.family = '"Instrument Sans", sans-serif'
+    Chart.defaults.font.size = 11
+
+    const pal = ['#1a56db', '#2d7a4f', '#b45d1e', '#8b3db6', '#c93b3b']
+
+    const pageChart = new Chart(document.getElementById('pageChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: pal, borderRadius: 3, borderSkipped: false, maxBarThickness: 34 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10.5 } } },
+          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { family: '"IBM Plex Mono"', size: 10 } } },
+        },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    const eventChart = new Chart(document.getElementById('eventChart'), {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: pal, borderWidth: 0, spacing: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '66%',
+        plugins: { legend: { position: 'right', labels: { color: '#5c5a56', font: { size: 10.5 }, padding: 8, usePointStyle: true, pointStyleWidth: 6 } } },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    // ---- Connection management ----
+    let activeSockets = []
+    let activeIntervals = []
+    let currentTenant = 'acme'
+
+    function setStatus(connected) {
+      const pill = document.getElementById('pill')
+      const text = document.getElementById('statusText')
+      if (connected) {
+        pill.classList.add('on')
+        text.textContent = 'live'
+      } else {
+        pill.classList.remove('on')
+        text.textContent = 'connecting'
+      }
+    }
+
+    function closeAll() {
+      activeSockets.forEach(ws => { ws.onclose = null; ws.close() })
+      activeSockets = []
+      activeIntervals.forEach(clearInterval)
+      activeIntervals = []
+      setStatus(false)
+    }
+
+    function sub(query, token, fn) {
+      const authParam = token ? `?token=${token}` : ''
+
+      const poll = () =>
+        fetch(`${BASE}/v1/queries/${query}${authParam}`)
+          .then(r => r.json())
+          .then(d => fn(d.rows || []))
+          .catch(() => {})
+
+      poll()
+      const iv = setInterval(poll, 1000)
+      activeIntervals.push(iv)
+
+      ;(function ws() {
+        const c = new WebSocket(`${WS}/subscribe/${query}${authParam}`)
+        activeSockets.push(c)
+        c.onopen = () => setStatus(true)
+        c.onmessage = e => {
+          try {
+            if (JSON.parse(e.data).type === 'diff') poll()
+          } catch {}
+        }
+        c.onclose = () => {
+          // Only reconnect if this socket is still in the active list
+          if (activeSockets.includes(c)) {
+            setTimeout(ws, 2000)
+          }
+        }
+        c.onerror = () => c.close()
+      })()
+    }
+
+    // ---- Reset display values ----
+    function resetDisplay() {
+      // Reset metric counters
+      ;['totalEvents', 'activeUsers', 'pageViews', 'avgDuration'].forEach(id => {
+        st[id] = { v: 0, raf: null }
+        document.getElementById(id).textContent = id === 'avgDuration' ? '0 ms' : '0'
+      })
+
+      // Clear charts
+      pageChart.data.labels = []
+      pageChart.data.datasets[0].data = []
+      pageChart.update()
+
+      eventChart.data.labels = []
+      eventChart.data.datasets[0].data = []
+      eventChart.update()
+
+      // Clear global table
+      document.getElementById('globalBody').innerHTML = ''
+    }
+
+    // ---- Connect to a tenant ----
+    async function connectTenant(tenantId) {
+      closeAll()
+      resetDisplay()
+      currentTenant = tenantId
+
+      const isAdmin = tenantId === 'admin'
+      const token = await getToken(tenantId)
+
+      // Show/hide global comparison table
+      document.getElementById('globalCard').classList.toggle('visible', isAdmin)
+
+      // Tenant overview (filtered by JWT)
+      sub('tenant_overview', token, rows => {
+        if (currentTenant !== tenantId) return
+        if (isAdmin) {
+          // Admin: aggregate all tenants
+          const totals = rows.reduce((acc, r) => ({
+            events: acc.events + Number(r.total_events),
+            users: acc.users + Number(r.active_users),
+            views: acc.views + Number(r.page_views),
+            dur: acc.dur + Number(r.avg_duration) * Number(r.total_events),
+            count: acc.count + Number(r.total_events),
+          }), { events: 0, users: 0, views: 0, dur: 0, count: 0 })
+
+          tick(document.getElementById('totalEvents'), totals.events)
+          tick(document.getElementById('activeUsers'), totals.users)
+          tick(document.getElementById('pageViews'), totals.views)
+          tick(document.getElementById('avgDuration'), totals.count ? Math.round(totals.dur / totals.count) : 0, ' ms')
+        } else {
+          const r = rows[0]
+          if (r) {
+            tick(document.getElementById('totalEvents'), Number(r.total_events))
+            tick(document.getElementById('activeUsers'), Number(r.active_users))
+            tick(document.getElementById('pageViews'), Number(r.page_views))
+            tick(document.getElementById('avgDuration'), Number(r.avg_duration), ' ms')
+          }
+        }
+      })
+
+      // Page stats (filtered by JWT)
+      sub('page_stats', token, rows => {
+        if (currentTenant !== tenantId) return
+        pageChart.data.labels = rows.map(r => r.page)
+        pageChart.data.datasets[0].data = rows.map(r => Number(r.views))
+        pageChart.update()
+      })
+
+      // Event breakdown (filtered by JWT)
+      sub('event_breakdown', token, rows => {
+        if (currentTenant !== tenantId) return
+        eventChart.data.labels = rows.map(r => r.event_type)
+        eventChart.data.datasets[0].data = rows.map(r => Number(r.count))
+        eventChart.update()
+      })
+
+      // Global overview (unfiltered — visible to all but table only shown for admin)
+      if (isAdmin) {
+        sub('global_overview', token, rows => {
+          if (currentTenant !== tenantId) return
+          document.getElementById('globalBody').innerHTML = rows.map(r => `
+            <tr>
+              <td><span class="tag">${r.tenant_id}</span></td>
+              <td class="num">${Number(r.total_events).toLocaleString()}</td>
+              <td class="num">${Number(r.active_users).toLocaleString()}</td>
+            </tr>
+          `).join('')
+        })
+      }
+    }
+
+    // ---- Tenant switch ----
+    document.getElementById('tenantSelect').addEventListener('change', e => {
+      connectTenant(e.target.value)
+    })
+
+    // ---- Boot ----
+    connectTenant('acme')
+  </script>
+</body>
+</html>

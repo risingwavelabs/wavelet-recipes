@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLA Guardian — Wavelet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --surface: #ffffff;
+      --border: #e3e0db;
+      --border-light: #eceae5;
+      --text: #1c1b19;
+      --text-2: #5c5a56;
+      --text-3: #9b9892;
+      --ink: #2c2b28;
+      --accent: #1a56db;
+      --positive: #1a7a42;
+      --negative: #c93b3b;
+      --warning: #b45d1e;
+      --shadow-sm: 0 1px 2px rgba(28,27,25,0.04);
+      --shadow-md:
+        0 1px 3px rgba(28,27,25,0.04),
+        0 4px 12px rgba(28,27,25,0.03);
+      --sans: "Instrument Sans", -apple-system, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      height: 52px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .nav-title span {
+      color: var(--text-3);
+      font-weight: 400;
+      margin: 0 6px;
+    }
+
+    .nav-page { font-weight: 500; color: var(--text-2); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 9px;
+      background: var(--bg);
+    }
+
+    .pill-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text-3);
+      transition: background 0.4s;
+    }
+
+    .pill.on .pill-dot { background: var(--positive); }
+    .pill.on { color: var(--text-2); }
+
+    /* ---- Layout ---- */
+    .page {
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+      display: grid;
+      gap: 14px;
+    }
+
+    /* ---- Metric strip ---- */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .metric {
+      padding: 20px 22px;
+      border-right: 1px solid var(--border-light);
+    }
+
+    .metric:last-child { border-right: none; }
+
+    .metric-label {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+
+    .metric-num {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      transition: color 0.5s ease;
+    }
+
+    .metric-num.flash { color: var(--positive); }
+    .metric-num.flash-red { color: var(--negative); }
+
+    /* ---- Cards ---- */
+    .row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .card.violation-card {
+      border-color: var(--negative);
+      border-width: 1.5px;
+    }
+
+    .card-head {
+      padding: 13px 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-2);
+      border-bottom: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-head-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(201,59,59,0.08);
+      color: var(--negative);
+    }
+
+    .card-body { padding: 18px 20px; }
+
+    .chart-box { position: relative; height: 220px; }
+
+    /* ---- Table ---- */
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 9px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    td {
+      padding: 10px 20px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(0,0,0,0.03);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .new-row { animation: highlight 0.7s ease-out; }
+    @keyframes highlight {
+      from { background: rgba(26,122,66,0.05); }
+      to { background: transparent; }
+    }
+
+    .violation-row { animation: highlightRed 1s ease-out; }
+    @keyframes highlightRed {
+      from { background: rgba(201,59,59,0.08); }
+      to { background: transparent; }
+    }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      background: rgba(26,86,219,0.06);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .tag-method {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(0,0,0,0.04);
+      color: var(--text-2);
+    }
+
+    .status-2xx {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--positive);
+    }
+
+    .status-4xx {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--warning);
+    }
+
+    .status-5xx {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--negative);
+    }
+
+    .latency {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-2);
+    }
+
+    .latency.high {
+      color: var(--negative);
+      font-weight: 600;
+    }
+
+    .secondary { color: var(--text-2); }
+
+    .timestamp {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .empty-state {
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+    }
+
+    .empty-state .check {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      border-radius: 50%;
+      background: rgba(26,122,66,0.08);
+      color: var(--positive);
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .breach-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 3px;
+      background: rgba(201,59,59,0.08);
+      color: var(--negative);
+    }
+
+    .foot {
+      text-align: center;
+      padding: 16px 0;
+      font-size: 11px;
+      color: var(--text-3);
+    }
+
+    .foot a {
+      color: var(--text-2);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .foot a:hover { color: var(--ink); }
+
+    /* ---- Entrance ---- */
+    .metric, .card {
+      animation: enter 0.45s ease-out both;
+    }
+
+    .metrics .metric:nth-child(1) { animation-delay: 0s; }
+    .metrics .metric:nth-child(2) { animation-delay: 0.03s; }
+    .metrics .metric:nth-child(3) { animation-delay: 0.06s; }
+    .metrics .metric:nth-child(4) { animation-delay: 0.09s; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: none; }
+      .metric:nth-child(3), .metric:nth-child(4) { border-top: 1px solid var(--border-light); }
+      .row-2 { grid-template-columns: 1fr; }
+      .page { padding: 16px 12px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-title">Wavelet<span>/</span><span class="nav-page">SLA Guardian</span></div>
+    <div class="pill" id="pill">
+      <span class="pill-dot"></span>
+      <span id="statusText">connecting</span>
+    </div>
+  </nav>
+
+  <div class="page">
+    <!-- Metric strip -->
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Total RPS</div>
+        <div class="metric-num" id="totalRps">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">P99 Latency (ms)</div>
+        <div class="metric-num" id="p99Latency">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Error Rate (%)</div>
+        <div class="metric-num" id="errorRate">0.00</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Active Services</div>
+        <div class="metric-num" id="activeServices">0</div>
+      </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="row-2">
+      <div class="card" style="animation-delay:0.12s">
+        <div class="card-head">P99 Latency by Endpoint</div>
+        <div class="card-body"><div class="chart-box"><canvas id="latencyChart"></canvas></div></div>
+      </div>
+      <div class="card" style="animation-delay:0.15s">
+        <div class="card-head">Error Rate by Service</div>
+        <div class="card-body"><div class="chart-box"><canvas id="errorChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- SLA Violations -->
+    <div class="card" id="violationCard" style="animation-delay:0.18s">
+      <div class="card-head">
+        SLA Violations
+        <span class="card-head-badge" id="violationBadge" style="display:none">0 breaches</span>
+      </div>
+      <div id="violationBody">
+        <div class="empty-state">
+          <div class="check">&#10003;</div>
+          <div>All endpoints within SLA</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Requests -->
+    <div class="card" style="animation-delay:0.21s">
+      <div class="card-head">Recent Requests</div>
+      <div>
+        <table>
+          <thead><tr>
+            <th>Service</th><th>Endpoint</th><th>Method</th><th>Status</th><th>Latency</th><th>Time</th>
+          </tr></thead>
+          <tbody id="requestsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <a href="https://github.com/risingwavelabs/wavelet">Wavelet</a> + <a href="https://github.com/risingwavelabs/risingwave">RisingWave</a>
+  </div>
+
+  <script>
+    const BASE = window.location.hostname === 'localhost'
+      ? 'http://localhost:8080'
+      : `http://${window.location.hostname}:8080`
+    const WS = BASE.replace('http', 'ws')
+
+    // ---- Animated numbers ----
+    const st = {}
+    function tick(el, target, opts = {}) {
+      const id = el.id
+      if (!st[id]) st[id] = { v: 0, raf: null }
+      const s = st[id]; s.target = target
+      if (s.raf) return
+      const from = s.v, t0 = performance.now()
+      const fmt = opts.format || 'int'
+      ;(function run(now) {
+        const p = Math.min((now - t0) / 400, 1)
+        s.v = from + (s.target - from) * (1 - Math.pow(1 - p, 3))
+        if (fmt === 'float') {
+          el.textContent = s.v.toFixed(2)
+        } else {
+          el.textContent = Math.round(s.v).toLocaleString()
+        }
+        if (p < 1) s.raf = requestAnimationFrame(run)
+        else { s.raf = null; s.v = s.target }
+      })(t0)
+
+      const flashClass = opts.alertHigh && target > opts.alertHigh ? 'flash-red' : 'flash'
+      el.classList.add(flashClass)
+      setTimeout(() => {
+        el.classList.remove('flash')
+        el.classList.remove('flash-red')
+      }, 600)
+    }
+
+    // ---- Charts ----
+    Chart.defaults.color = '#9b9892'
+    Chart.defaults.borderColor = 'rgba(0,0,0,0.04)'
+    Chart.defaults.font.family = '"Instrument Sans", sans-serif'
+    Chart.defaults.font.size = 11
+
+    const pal = ['#1a56db', '#2d7a4f', '#b45d1e', '#8b3db6', '#c93b3b', '#0e7490', '#9333ea', '#ca8a04']
+
+    function barColor(value, threshold) {
+      return value > threshold ? '#c93b3b' : '#1a56db'
+    }
+
+    const latencyChart = new Chart(document.getElementById('latencyChart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          backgroundColor: [],
+          borderRadius: 3,
+          borderSkipped: false,
+          maxBarThickness: 28,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `P99: ${ctx.raw}ms`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, callback: v => v + 'ms' },
+          },
+          y: {
+            grid: { display: false },
+            ticks: { font: { size: 10 } },
+          },
+        },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    const errorChart = new Chart(document.getElementById('errorChart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          backgroundColor: [],
+          borderRadius: 3,
+          borderSkipped: false,
+          maxBarThickness: 34,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `Error rate: ${ctx.raw}%`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 10 } },
+          },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { font: { family: '"IBM Plex Mono"', size: 10 }, callback: v => v + '%' },
+          },
+        },
+        animation: { duration: 350, easing: 'easeOutCubic' },
+      },
+    })
+
+    // ---- Status helpers ----
+    function statusClass(code) {
+      const c = parseInt(code)
+      if (c >= 500) return 'status-5xx'
+      if (c >= 400) return 'status-4xx'
+      return 'status-2xx'
+    }
+
+    function latencyClass(ms) {
+      return parseInt(ms) > 500 ? 'latency high' : 'latency'
+    }
+
+    // ---- Subscribe helper ----
+    let wsConnected = 0
+    const totalQueries = 4
+
+    function sub(query, fn) {
+      const poll = () => fetch(`${BASE}/v1/queries/${query}`)
+        .then(r => r.json())
+        .then(d => fn(d.rows || []))
+        .catch(() => {})
+      poll()
+      ;(function ws() {
+        const c = new WebSocket(`${WS}/subscribe/${query}`)
+        c.onopen = () => {
+          wsConnected++
+          if (wsConnected >= 1) {
+            document.getElementById('pill').classList.add('on')
+            document.getElementById('statusText').textContent = 'live'
+          }
+        }
+        c.onmessage = e => {
+          try {
+            if (JSON.parse(e.data).type === 'diff') poll()
+          } catch {}
+        }
+        c.onclose = () => {
+          wsConnected = Math.max(0, wsConnected - 1)
+          if (wsConnected === 0) {
+            document.getElementById('pill').classList.remove('on')
+            document.getElementById('statusText').textContent = 'connecting'
+          }
+          setTimeout(ws, 2000)
+        }
+        c.onerror = () => c.close()
+      })()
+    }
+
+    // ---- Wire up queries ----
+
+    // service_health -> metric cards + error chart
+    sub('service_health', rows => {
+      const totalReqs = rows.reduce((s, r) => s + Number(r.total_requests), 0)
+      const totalErrors = rows.reduce((s, r) => s + Number(r.error_count), 0)
+      const overallErrorRate = totalReqs > 0 ? (100.0 * totalErrors / totalReqs) : 0
+      const maxP99 = rows.reduce((m, r) => Math.max(m, Number(r.p99_latency)), 0)
+
+      tick(document.getElementById('totalRps'), totalReqs)
+      tick(document.getElementById('p99Latency'), maxP99, { alertHigh: 500 })
+      tick(document.getElementById('errorRate'), overallErrorRate, { format: 'float', alertHigh: 5.0 })
+      tick(document.getElementById('activeServices'), rows.length)
+
+      // Error rate bar chart
+      errorChart.data.labels = rows.map(r => r.service)
+      errorChart.data.datasets[0].data = rows.map(r => parseFloat(r.error_rate))
+      errorChart.data.datasets[0].backgroundColor = rows.map(r =>
+        parseFloat(r.error_rate) > 5.0 ? '#c93b3b' : '#2d7a4f'
+      )
+      errorChart.update()
+    })
+
+    // endpoint_stats -> latency chart
+    sub('endpoint_stats', rows => {
+      const top = rows.slice(0, 10)
+      latencyChart.data.labels = top.map(r => `${r.method} ${r.endpoint}`)
+      latencyChart.data.datasets[0].data = top.map(r => Number(r.p99))
+      latencyChart.data.datasets[0].backgroundColor = top.map(r =>
+        Number(r.p99) > 500 ? '#c93b3b' : '#1a56db'
+      )
+      latencyChart.update()
+    })
+
+    // sla_violations -> violations panel
+    sub('sla_violations', rows => {
+      const card = document.getElementById('violationCard')
+      const badge = document.getElementById('violationBadge')
+      const body = document.getElementById('violationBody')
+
+      if (rows.length === 0) {
+        card.classList.remove('violation-card')
+        badge.style.display = 'none'
+        body.innerHTML = `
+          <div class="empty-state">
+            <div class="check">&#10003;</div>
+            <div>All endpoints within SLA</div>
+          </div>`
+        return
+      }
+
+      card.classList.add('violation-card')
+      badge.style.display = 'inline'
+      badge.textContent = `${rows.length} breach${rows.length > 1 ? 'es' : ''}`
+
+      body.innerHTML = `<table>
+        <thead><tr>
+          <th>Service</th><th>Endpoint</th><th>Method</th><th>Requests</th><th>Error Rate</th><th>P99 Latency</th><th>Breach</th>
+        </tr></thead>
+        <tbody>${rows.map(r => {
+          const errRate = parseFloat(r.error_rate)
+          const p99 = parseInt(r.p99_latency)
+          const breaches = []
+          if (errRate > 5.0) breaches.push('error_rate')
+          if (p99 > 500) breaches.push('p99')
+          return `<tr class="violation-row">
+            <td><span class="tag">${r.service}</span></td>
+            <td class="secondary">${r.endpoint}</td>
+            <td><span class="tag-method">${r.method}</span></td>
+            <td class="secondary">${r.requests}</td>
+            <td class="${errRate > 5.0 ? 'status-5xx' : 'secondary'}">${errRate}%</td>
+            <td class="${p99 > 500 ? 'status-5xx' : 'secondary'}">${p99}ms</td>
+            <td>${breaches.map(b => `<span class="breach-tag">${b}</span>`).join(' ')}</td>
+          </tr>`
+        }).join('')}</tbody>
+      </table>`
+    })
+
+    // recent_requests -> table
+    sub('recent_requests', rows => {
+      document.getElementById('requestsBody').innerHTML = rows.slice(0, 20).map((r, i) => `
+        <tr class="${i < 3 ? 'new-row' : ''}">
+          <td><span class="tag">${r.service}</span></td>
+          <td class="secondary">${r.endpoint}</td>
+          <td><span class="tag-method">${r.method}</span></td>
+          <td><span class="${statusClass(r.status_code)}">${r.status_code}</span></td>
+          <td><span class="${latencyClass(r.latency_ms)}">${r.latency_ms}ms</span></td>
+          <td class="timestamp">${new Date(r.ts).toLocaleTimeString()}</td>
+        </tr>
+      `).join('')
+    })
+  </script>
+</body>
+</html>
