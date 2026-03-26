@@ -1,4 +1,4 @@
-# Fraud Watchdog
+# Fraud Agent
 
 Real-time fraud detection agent that monitors payment transactions, flags suspicious users, and triggers webhook alerts.
 

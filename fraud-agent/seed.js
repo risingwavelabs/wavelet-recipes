@@ -1,4 +1,4 @@
-// Generates realistic payment transaction data for Fraud Watchdog.
+// Generates realistic payment transaction data for Fraud Agent.
 // Normal users make small, infrequent purchases. Fraud users appear after ~8 seconds
 // with high-frequency, multi-country, high-value transactions.
 // Run: node seed.js

@@ -20,7 +20,7 @@ Each recipe is a self-contained project. Install, run, open the browser. Data ge
 |--------|-------------|--------------|
 | [SLA Guardian](sla-guardian/) | API latency and error rate monitoring with alerts | P99/P95, webhook on SLA breach |
 | [Spend Control](spend-control/) | AI/cloud cost tracking with automated budget enforcement | Webhook + write-back closed loop |
-| [Fraud Watchdog](fraud-watchdog/) | Transaction fraud detection with anomaly alerts | Multi-rule detection, severity classification |
+| [Fraud Agent](fraud-agent/) | Transaction fraud detection with anomaly alerts | Multi-rule detection, severity classification |
 
 ### Multi-Tenant
 

@@ -1,4 +1,4 @@
-// Fraud Watchdog Agent — receives webhook alerts when suspicious users are detected.
+// Fraud Agent - receives webhook alerts when suspicious users are detected.
 // Parses the diff payload and logs color-coded alerts with reason analysis.
 // Run: node agent.js
 
@@ -110,7 +110,7 @@ const server = http.createServer((req, res) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`${CYAN}${BOLD}[agent]${RESET} Fraud Watchdog agent listening on port ${PORT}`)
+  console.log(`${CYAN}${BOLD}[agent]${RESET} Fraud agent listening on port ${PORT}`)
   console.log(`${CYAN}[agent]${RESET} Waiting for suspicious_users webhook alerts...`)
   console.log('')
 })
